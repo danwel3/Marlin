@@ -28,14 +28,8 @@
 //
 // Included by: e3v2/*/dwin_lcd.h
 //
-
-#if ENABLED(DWIN_MARLINUI_LANDSCAPE)
-  #define DWIN_WIDTH  480
-  #define DWIN_HEIGHT 272
-#else
-  #define DWIN_WIDTH  272
-  #define DWIN_HEIGHT 480
-#endif
+#define DWIN_WIDTH  240
+#define DWIN_HEIGHT 320
 
 #define RECEIVED_NO_DATA         0x00
 #define RECEIVED_SHAKE_HAND_ACK  0x01
@@ -96,7 +90,7 @@ void dwinStartup();
 
 #if HAS_LCD_BRIGHTNESS
   // Set the backlight brightness
-  //  brightness: (0x00-0xFF)
+  //  brightness: (0x00-0x40)
   void dwinLCDBrightness(const uint8_t brightness);
 #endif
 
@@ -151,7 +145,17 @@ inline void dwinDrawBox(uint8_t mode, uint16_t color, uint16_t xStart, uint16_t 
   dwinDrawRectangle(mode, color, xStart, yStart, xStart + xSize - 1, yStart + ySize - 1);
 }
 
+// Set Pallet Colour 16-bit
+//  FC: Foreground color
+//  BC: Background color
+void dwinSetColor(uint16_t FC,uint16_t BC);
+
+// Set Pallet Colour 24-bit
+//  BC: Background color
+void  dwinSet24Color(uint32_t BC);
+
 // Draw a point
+// TODO: Confirm if this is a supported feature. Ender3v3-SE software doesn't have this configured
 //  color: point color
 //  width: point width   0x01-0x0F
 //  height: point height 0x01-0x0F

@@ -81,10 +81,10 @@ bool dwinHandshake() {
 
 #if HAS_LCD_BRIGHTNESS
   // Set LCD backlight (from DWIN Enhanced)
-  //  brightness: 0x00-0xFF
+  //  brightness: 0x00-0x40
   void dwinLCDBrightness(const uint8_t brightness) {
     size_t i = 0;
-    dwinByte(i, 0x30);
+    dwinByte(i, 0x5f);
     dwinByte(i, brightness);
     dwinSend(i);
   }
@@ -93,13 +93,11 @@ bool dwinHandshake() {
 // Get font character width
 uint8_t fontWidth(uint8_t cfont) {
   switch (cfont) {
-    #if DISABLED(TJC_DISPLAY)
-      case font6x12 : return 6;
-      case font20x40: return 20;
-      case font24x48: return 24;
-      case font28x56: return 28;
-      case font32x64: return 32;
-    #endif
+    case font6x12 : return 6;
+    case font20x40: return 20;
+    case font24x48: return 24;
+    case font28x56: return 28;
+    case font32x64: return 32;
     case font8x16 : return 8;
     case font10x20: return 10;
     case font12x24: return 12;
@@ -112,13 +110,11 @@ uint8_t fontWidth(uint8_t cfont) {
 // Get font character height
 uint8_t fontHeight(uint8_t cfont) {
   switch (cfont) {
-    #if DISABLED(TJC_DISPLAY)
-      case font6x12 : return 12;
-      case font20x40: return 40;
-      case font24x48: return 48;
-      case font28x56: return 56;
-      case font32x64: return 64;
-    #endif
+    case font6x12 : return 12;
+    case font20x40: return 40;
+    case font24x48: return 48;
+    case font28x56: return 56;
+    case font32x64: return 64;
     case font8x16 : return 16;
     case font10x20: return 20;
     case font12x24: return 24;
@@ -130,6 +126,7 @@ uint8_t fontHeight(uint8_t cfont) {
 
 // Set screen display direction
 //  dir: 0=0°, 1=90°, 2=180°, 3=270°
+// TODO: Might not work Creality Firmware has it all commented out
 void dwinFrameSetDir(uint8_t dir) {
   size_t i = 0;
   dwinByte(i, 0x34);
@@ -140,6 +137,7 @@ void dwinFrameSetDir(uint8_t dir) {
 }
 
 // Update display
+// TODO: Confirm if this command actually does anything.
 void dwinUpdateLCD() {
   size_t i = 0;
   dwinByte(i, 0x3D);
@@ -148,15 +146,42 @@ void dwinUpdateLCD() {
 
 /*---------------------------------------- Drawing functions ----------------------------------------*/
 
-// Clear screen
-//  color: Clear screen color
-void dwinFrameClear(const uint16_t color) {
+void dwinSetColor(uint16_t FC,uint16_t BC)
+{
   size_t i = 0;
-  dwinByte(i, 0x01);
-  dwinWord(i, color);
+  dwinByte(i, 0x40);
+  dwinWord(i, FC);
+  dwinWord(i, BC);
   dwinSend(i);
 }
 
+
+// TODO: Determine if this is required. Implementation doesn't look to be correct
+void dwinSet24Color(uint32_t BC)
+{
+  size_t i = 0;
+  dwinByte(i, 0x40); 
+  dwinByte(i, BC>>16);
+  dwinByte(i, BC>>8);
+  dwinByte(i, BC);
+  dwinByte(i, 255);
+  dwinByte(i, 255);
+  dwinByte(i, 255);
+  dwinSend(i);
+}
+
+// Clear screen
+//  color: Clear screen color
+// Note: Hasn't been updated in Creality's version.
+void dwinFrameClear(const uint16_t color) {
+  size_t i = 0;
+  dwinSetColor(color, color);
+  dwinByte(i, 0x52);
+  dwinSend(i);
+}
+
+// TODO: This is not correct op-code is different. Hasn't been updated in Creality's version either.
+// Note: Not sure what this is doing. Is drawing a point or a square?
 #if DISABLED(TJC_DISPLAY)
   // Draw a point
   //  color: point color
@@ -181,8 +206,8 @@ void dwinFrameClear(const uint16_t color) {
 //  xEnd/yEnd: End point
 void dwinDrawLine(uint16_t color, uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd) {
   size_t i = 0;
-  dwinByte(i, 0x03);
-  dwinWord(i, color);
+  dwinSetColor(color, color);
+  dwinByte(i, 0x56);
   dwinWord(i, xStart);
   dwinWord(i, yStart);
   dwinWord(i, xEnd);
@@ -191,15 +216,36 @@ void dwinDrawLine(uint16_t color, uint16_t xStart, uint16_t yStart, uint16_t xEn
 }
 
 // Draw a rectangle
+// NOTE: Creality created this with 4 versions unsure what the 4th one does. Documentation lists fill the rectangle in background color which sounds redundant to me.
 //  mode: 0=frame, 1=fill, 2=XOR fill
 //  color: Rectangle color
 //  xStart/yStart: upper left point
 //  xEnd/yEnd: lower right point
 void dwinDrawRectangle(uint8_t mode, uint16_t color, uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd) {
   size_t i = 0;
-  dwinByte(i, 0x05);
-  dwinByte(i, mode);
-  dwinWord(i, color);
+  uint8_t temp_mode = 0;
+  switch (mode)
+  {
+    case 0:
+      temp_mode = 0x59;
+      break;
+     case 1:
+      temp_mode = 0x5B;
+      break;
+     case 2:
+      temp_mode = 0x69; //背景色显示矩形区域
+      break;
+     case 3:
+      temp_mode = 0x5A; //背景色填充矩形区域
+      break;
+    default:
+      break;
+  }
+  // NOTE: Why is this needed?
+  // if(xEnd >= DWIN_WIDTH)
+  //   xEnd = DWIN_WIDTH - 1;
+  dwinSetColor(color, color);
+  dwinByte(i, temp_mode);
   dwinWord(i, xStart);
   dwinWord(i, yStart);
   dwinWord(i, xEnd);
@@ -217,6 +263,8 @@ void dwinDrawRectangle(uint8_t mode, uint16_t color, uint16_t xStart, uint16_t y
 void dwinFrameAreaMove(uint8_t mode, uint8_t dir, uint16_t dis,
                          uint16_t color, uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd) {
   size_t i = 0;
+  //Note is this needed?
+  //if(xEnd==DWIN_WIDTH) xEnd-=1;
   dwinByte(i, 0x09);
   dwinByte(i, (mode << 7) | dir);
   dwinWord(i, dis);
@@ -240,24 +288,22 @@ void dwinFrameAreaMove(uint8_t mode, uint8_t dir, uint16_t dis,
 //  *string: The string
 //  rlimit: To limit the drawn string length
 void dwinDrawString(bool bShow, uint8_t size, uint16_t color, uint16_t bColor, uint16_t x, uint16_t y, const char * const string, uint16_t rlimit/*=0xFFFF*/) {
-  #if ENABLED(DWIN_CREALITY_LCD)
-    dwinDrawRectangle(1, bColor, x, y, x + (fontWidth(size) * strlen_P(string)), y + fontHeight(size));
-  #endif
   constexpr uint8_t widthAdjust = 0;
   size_t i = 0;
-  dwinByte(i, 0x11);
-  // Bit 7: widthAdjust
-  // Bit 6: bShow
-  // Bit 5-4: Unused (0)
-  // Bit 3-0: size
-  dwinByte(i, (widthAdjust * 0x80) | (bShow * 0x40) | size);
-  dwinWord(i, color);
-  dwinWord(i, bColor);
+  dwinByte(i, 0x98);
   dwinWord(i, x);
   dwinWord(i, y);
+  dwinByte(i, 0x00); // Font Library
+  // Bit 7 - 4: bShow
+  // Bit 3 - 0: Character Encoding 0x00 8bit, 0x05 Unicode
+  dwinByte(i, (bShow * 0x40) | 0x05);
+  dwinByte(i, size);
+  dwinWord(i, color);
+  dwinWord(i, bColor);
   dwinText(i, string, rlimit);
   dwinSend(i);
 }
+
 
 // Draw a positive integer
 //  bShow: true=display background color; false=don't display background color
@@ -272,9 +318,6 @@ void dwinDrawString(bool bShow, uint8_t size, uint16_t color, uint16_t bColor, u
 void dwinDrawIntValue(uint8_t bShow, bool zeroFill, uint8_t zeroMode, uint8_t size, uint16_t color,
                           uint16_t bColor, uint8_t iNum, uint16_t x, uint16_t y, uint32_t value) {
   size_t i = 0;
-  #if DISABLED(DWIN_CREALITY_LCD_JYERSUI)
-    dwinDrawRectangle(1, bColor, x, y, x + fontWidth(size) * iNum + 1, y + fontHeight(size));
-  #endif
   dwinByte(i, 0x14);
   // Bit 7: bshow
   // Bit 6: 1 = signed; 0 = unsigned number;
@@ -355,6 +398,7 @@ void dwinDrawFloatValue(uint8_t bShow, bool zeroFill, uint8_t zeroMode, uint8_t 
 
 // Draw JPG and cached in #0 virtual display area
 //  id: Picture ID
+// NOTE: Not sure if this is correct
 void dwinJPGShowAndCache(const uint8_t id) {
   size_t i = 0;
   dwinWord(i, 0x2200);
@@ -373,14 +417,17 @@ void dwinIconShow(bool IBD, bool BIR, bool BFI, uint8_t libID, uint8_t picID, ui
   NOMORE(x, DWIN_WIDTH - 1);
   NOMORE(y, DWIN_HEIGHT - 1); // -- ozy -- srl
   size_t i = 0;
-  dwinByte(i, 0x23);
+  dwinByte(i, 0x97);
   dwinWord(i, x);
   dwinWord(i, y);
-  dwinByte(i, (IBD << 7) | (BIR << 6) | (BFI << 5) | libID);
+  dwinByte(i, libID);
+  // NOTE: Function can perform the BFI function. TODO: Modify to take advantage
+  dwinByte(i,0x00);
   dwinByte(i, picID);
   dwinSend(i);
 }
 
+// Note: Doesn't appear to be in the struction set
 // Draw an Icon from SRAM
 //  IBD: The icon background display: 0=Background filtering is not displayed, 1=Background display \\When setting the background filtering not to display, the background must be pure black
 //  BIR: Background image restoration: 0=Background image is not restored, 1=Automatically use virtual display area image for background restoration
@@ -399,6 +446,7 @@ void dwinIconShow(bool IBD, bool BIR, bool BFI, uint16_t x, uint16_t y, uint16_t
   dwinSend(i);
 }
 
+// Note: Doesn't appear to be in the struction set
 // Unzip the JPG picture to a virtual display area
 //  n: Cache index
 //  id: Picture ID
@@ -410,6 +458,7 @@ void dwinJPGCacheToN(uint8_t n, uint8_t id) {
   dwinSend(i);
 }
 
+// Note: Doesn't appear to be in the struction set
 // Animate a series of icons
 //  animID: Animation ID; 0x00-0x0F
 //  animate: true on; false off;
@@ -437,6 +486,7 @@ void dwinIconAnimation(uint8_t animID, bool animate, uint8_t libID, uint8_t picI
   dwinSend(i);
 }
 
+// Note: Doesn't appear to be in the struction set
 // Animation Control
 //  state: 16 bits, each bit is the state of an animation id
 void dwinIconAnimationControl(uint16_t state) {
