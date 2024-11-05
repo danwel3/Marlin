@@ -174,3 +174,5 @@ tags
 .env
 .vscode/extensions.json
 Marlin/config.ini
+Marlin/Configuration_adv.h
+Marlin/Configuration.h
