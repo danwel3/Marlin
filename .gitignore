@@ -172,3 +172,5 @@ tags
 .aider*
 !.aiderignore
 .env
+.vscode/extensions.json
+Marlin/config.ini
